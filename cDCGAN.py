@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data
+import torch.nn.functional as F
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
@@ -42,15 +43,20 @@ ndf = 64           # Base size of feature maps in discriminator
 nc = 3             # Number of channels (3 for RGB)
 
 # =====================================================
-# 1. Data Loading
+# 1. Data Loading and Preprocessing
 # =====================================================
+"""
+This section handles the ingestion of the CIFAR-10 dataset.
+A critical preprocessing step is the normalization of RGB pixel values 
+from [0, 1] to the range [-1, 1]. This ensures mathematical compatibility 
+with the Generator's final Tanh activation function, allowing the Discriminator 
+to evaluate real and synthetic images on an identical numerical scale.
+"""
 
 # CIFAR-10 dataset transformations
 transform = transforms.Compose([
     transforms.Resize(image_size), # CIFAR-10 is already 32x32, but good for safety
     transforms.ToTensor(),
-    # CRITICAL: We need 3 values for the mean and 3 for the std because CIFAR-10 has 3 channels (RGB).
-    # This normalizes the pixel values to the range [-1, 1], matching the Generator's Tanh output.
     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)) 
 ])
 
@@ -64,6 +70,19 @@ dataloader = torch.utils.data.DataLoader(dataset=cifar10_data,
                                          batch_size=batch_size,
                                          shuffle=True,
                                          num_workers=workers)
+
+# =====================================================
+# 2. Generator and Discriminator Architectures
+# =====================================================
+"""
+This section defines the Conditional DCGAN architecture. 
+To enable class-conditioned generation, both networks process joint representations:
+- The Generator concatenates a random noise vector (z) with a one-hot label vector (y),
+it processes those vectors, combines them in the spatial domain so that it learns to generate images conditioned on the label.
+- The Discriminator expands the one-hot label into a spatial feature map and concatenates 
+  it directly onto the RGB image channels, ensuring the class condition acts as a 
+  persistent global context across all spatial convolutions.
+"""
 
 # =====================================================
 # 2.a Generator and Discriminator Architectures
@@ -239,26 +258,48 @@ netD = Discriminator().to(device)
 netD.apply(weights_init)
 print(netD)
 
-import torch.nn.functional as F
-
 # =====================================================
 # 4. Optimizers and Loss Function
 # =====================================================
-
+"""
+We utilize the Binary Cross Entropy (BCE) Loss. Since the Discriminator acts 
+as a binary classifier estimating authenticity, BCE naturally measures the error 
+between the network's predicted probability (0 to 1) and the actual mathematical target.
+"""
 # Initialize BCELoss function
 criterion = nn.BCELoss()
 
-# Establish convention for real and fake labels during training
+# Establish convention for real and fake labels during training targets:
+# 1.0 represents a ground-truth "Real" image from the CIFAR-10 dataset.
+# 0.0 represents a "Fake" image synthesized by the Generator.
+# The Generator's ultimate goal is to force the Discriminator to predict 1.0 for fake images.
 real_label_val = 1.0
 fake_label_val = 0.0
 
-# Setup Adam optimizers for both G and D
+# Setup Adam optimizers for both G and D using standard GAN hyperparameters
 optimizerD = optim.Adam(netD.parameters(), lr=0.0002, betas=(0.5, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
 # =====================================================
 # 5. The Training Loop
 # =====================================================
+"""
+SUMMARY OF THE cDCGAN TRAINING LOOP
+The training process is a zero-sum minimax game divided into two distinct phases per batch:
+
+PHASE 1: Update the Discriminator (D)
+Objective: Maximize log(D(x|y)) + log(1 - D(G(z|y)|y))
+- Step 1.1: Pass a batch of Real images to D. Calculate BCE loss against a target of 1.0 (Real). Accumulate gradients.
+- Step 1.2: Generate a batch of Fake images using G. 
+- Step 1.3: Pass the Fake images to D. Use .detach() to sever the graph and prevent gradients from flowing back into G.
+- Step 1.4: Calculate BCE loss against a target of 0.0 (Fake). Accumulate gradients and update D's weights.
+
+PHASE 2: Update the Generator (G)
+Objective: Maximize log(D(G(z|y)|y)) (i.e., fool the Discriminator)
+- Step 2.1: Pass the same Fake images to D, but this time WITHOUT .detach() to keep the computational graph intact.
+- Step 2.2: Calculate BCE loss against a target of 1.0 (Real). A high loss here means G failed to fool D.
+- Step 2.3: Backpropagate the error through D directly into G's weights, and update G.
+"""
 
 # Create a fixed batch of 64 noise vectors and random labels
 fixed_noise = torch.randn(64, nz, device=device)
@@ -278,7 +319,7 @@ for epoch in range(num_epochs):
         class_labels_int = data[1].to(device)
         b_size = real_images.size(0)
         
-        # Convert integer labels to One-Hot Vectors [Batch, 10]
+        # Convert integer labels to One-Hot Vectors [Batch, 10] (integers from 0 to 9 are mapped into binary vectors of length 10)
         # and cast to float so they can be processed by neural net layers
         class_labels_onehot = F.one_hot(class_labels_int, num_classes=label_dim).float()
 

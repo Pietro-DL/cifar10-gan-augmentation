@@ -1,45 +1,74 @@
+# ==========================================
+# 1. SETUP & DYNAMIC PATH MANAGEMENT
+# ==========================================
+"""
+To ensure cross-platform compatibility, this script dynamically resolves its own 
+directory path. It assumes the following repository structure:
+/github
+  ├── /model_weights
+  ├── /images
+  ├── /data
+  └── Comparison_script.py
+"""
 import os
 import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 
-# ==========================================
-# 1. SETUP & PATHS
-# ==========================================
-# Point strictly to your local absolute path
-BASE_DIR = r"C:\Users\pietr\OneDrive\Desktop\deep_learning\project_assignement"
+# Dynamically set BASE_DIR to the folder containing this script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 WEIGHTS_DIR = os.path.join(BASE_DIR, "model_weights")
+IMAGES_DIR = os.path.join(BASE_DIR, "images")
 
-# Paths to the specific models
-baseline_model_path = os.path.join(WEIGHTS_DIR, "cifar_model_cnn.pth")
+# Ensure the images directory exists for saving plots
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+# Paths to the specific evaluation models
+baseline_model_path = os.path.join(WEIGHTS_DIR, "cnn_100real_0fake.pth")
 augmented_model_path = os.path.join(WEIGHTS_DIR, "augmented_cifar_cnn.pth")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"--- Starting Final Evaluation on: {device} ---")
+print(f"--- Working Directory: {BASE_DIR} ---")
 
 # ==========================================
 # 2. DEFINING THE CLASSIFIER ARCHITECTURE
 # ==========================================
-# We must redefine the architecture so PyTorch knows where to put the loaded weights!
+"""
+The identical VGG-style Convolutional Neural Network used during training.
+PyTorch requires the structural blueprint of the network to be defined in memory 
+before it can successfully map the loaded .pth weight dictionaries.
+
+--- Convolutional Feature Extractor ---
+Block 1: [Batch, 3, 32, 32]   --> [Batch, 32, 16, 16]
+Block 2: [Batch, 32, 16, 16]  --> [Batch, 64, 8, 8]
+Block 3: [Batch, 64, 8, 8]    --> [Batch, 128, 4, 4]
+
+--- Classification Head ---
+Flatten: [Batch, 128, 4, 4]   --> [Batch, 2048]
+Linear:  [Batch, 2048]        --> [Batch, 10] (via intermediate 128 and 64 layers)
+"""
 class CIFARClassifier(nn.Module):
     def __init__(self):
         super().__init__()
-        
+
+        # Block 1
         self.conv_1a = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1)
         self.bn_1a = nn.BatchNorm2d(32)
-        self.relu_1a = nn.ReLU() 
+        self.relu_1a = nn.ReLU()
         self.conv_1b = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1)
         self.bn_1b = nn.BatchNorm2d(32)
-        self.relu_1b = nn.ReLU() 
+        self.relu_1b = nn.ReLU()
         self.pool_1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
+        # Block 2
         self.conv_2a = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
         self.bn_2a = nn.BatchNorm2d(64)
         self.relu_2a = nn.ReLU()
@@ -48,6 +77,7 @@ class CIFARClassifier(nn.Module):
         self.relu_2b = nn.ReLU()
         self.pool_2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
+        # Block 3
         self.conv_3a = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1)
         self.bn_3a = nn.BatchNorm2d(128)
         self.relu_3a = nn.ReLU()
@@ -56,50 +86,35 @@ class CIFARClassifier(nn.Module):
         self.relu_3b = nn.ReLU()
         self.pool_3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
+        # Classification Head
         self.flatten = nn.Flatten()
-        self.fc_1 = nn.Linear(in_features=128 * 4 * 4, out_features=128) 
+        self.fc_1 = nn.Linear(in_features=128 * 4 * 4, out_features=128)
         self.relu_4 = nn.ReLU()
         self.fc_2 = nn.Linear(in_features=128, out_features=64)
         self.relu_5 = nn.ReLU()
-        self.fc_3 = nn.Linear(in_features=64, out_features=10)
+        self.fc_3 = nn.Linear(in_features=64, out_features=10) 
 
     def forward(self, x):
-        x = self.conv_1a(x)
-        x = self.bn_1a(x)
-        x = self.relu_1a(x)
-        x = self.conv_1b(x)
-        x = self.bn_1b(x)
-        x = self.relu_1b(x)
-        x = self.pool_1(x)
-
-        x = self.conv_2a(x)
-        x = self.bn_2a(x)
-        x = self.relu_2a(x)
-        x = self.conv_2b(x)
-        x = self.bn_2b(x)
-        x = self.relu_2b(x)
-        x = self.pool_2(x)
-
-        x = self.conv_3a(x)
-        x = self.bn_3a(x)
-        x = self.relu_3a(x)
-        x = self.conv_3b(x)
-        x = self.bn_3b(x)
-        x = self.relu_3b(x)
-        x = self.pool_3(x)
-
+        # Block 1
+        x = self.pool_1(self.relu_1b(self.bn_1b(self.conv_1b(self.relu_1a(self.bn_1a(self.conv_1a(x)))))))
+        # Block 2
+        x = self.pool_2(self.relu_2b(self.bn_2b(self.conv_2b(self.relu_2a(self.bn_2a(self.conv_2a(x)))))))
+        # Block 3
+        x = self.pool_3(self.relu_3b(self.bn_3b(self.conv_3b(self.relu_3a(self.bn_3a(self.conv_3a(x)))))))
+        
+        # Classification Head
         x = self.flatten(x)
-        x = self.fc_1(x)
-        x = self.relu_4(x)
-        x = self.fc_2(x)
-        x = self.relu_5(x)
-        x = self.fc_3(x) 
-        return x
+        # Final output leverages raw logits; CrossEntropyLoss applies the Softmax internally
+        return self.fc_3(self.relu_5(self.fc_2(self.relu_4(self.fc_1(x)))))
 
 # ==========================================
 # 3. PREPARING THE STRICT TEST SET
 # ==========================================
-# NO Augmentations! Just Tensor conversion and matching the [-1, 1] normalization.
+"""
+To ensure a strictly objective benchmark, the test dataloader completely disables 
+random crops and horizontal flips. The images are only tensorized and normalized 
+to the [-1, 1] range to match the mathematical scale of the training distributions.
+"""
 test_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -111,11 +126,18 @@ testloader = DataLoader(testset, batch_size=128, shuffle=False)
 # ==========================================
 # 4. EVALUATION FUNCTION
 # ==========================================
-
-
+"""
+This function loads a pre-trained model and evaluates it against the strict test set.
+It utilizes torch.no_grad() to disable the computational graph, saving memory and 
+preventing accidental weight updates. It calculates both Macro-averaged global metrics 
+and localized per-class metrics to identify specific categorical degradations.
+"""
 def evaluate_model(model_path, model_name):
     print(f"\nEvaluating: {model_name}...")
     
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model weights not found at: {model_path}")
+        
     model = CIFARClassifier().to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval() 
@@ -125,12 +147,12 @@ def evaluate_model(model_path, model_name):
     
     with torch.no_grad():
         for images, labels in testloader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            _, preds = torch.max(outputs, 1)
+            images, labels = images.to(device), labels.to(device) # Load images into the device
+            outputs = model(images) # Forward Pass
+            _, preds = torch.max(outputs, 1) # Get the predicted class
             
-            all_preds.extend(preds.cpu().numpy())
-            all_true.extend(labels.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy()) # Append the predicted class to the list
+            all_true.extend(labels.cpu().numpy()) # Append the true class to the list
             
     # Calculate Global Metrics
     acc = accuracy_score(all_true, all_preds) * 100
@@ -139,8 +161,7 @@ def evaluate_model(model_path, model_name):
     f1 = f1_score(all_true, all_preds, average='macro') * 100
     cm = confusion_matrix(all_true, all_preds)
 
-    # --- NEW: Extract Per-Class Metrics ---
-    # Setting average=None returns an array of 10 values (one for each class)
+    # Extract Per-Class Metrics (average=None returns arrays of length 10)
     prec_per_class = precision_score(all_true, all_preds, average=None, zero_division=0) * 100
     rec_per_class = recall_score(all_true, all_preds, average=None, zero_division=0) * 100
     
@@ -149,13 +170,17 @@ def evaluate_model(model_path, model_name):
     print(f"[{model_name}] Recall:    {recall:.2f}%")
     print(f"[{model_name}] F1-Score:  {f1:.2f}%")
     
-    # We now return the global metrics AND the per-class arrays!
     return cm, acc, f1, precision, recall, prec_per_class, rec_per_class
 
 # ==========================================
-# 5. EXECUTE AND PLOT (UPDATED)
+# 5. EXECUTE AND PLOT
 # ==========================================
-# 1. Get ALL the matrices, global scores, and per-class arrays
+"""
+Executes the evaluation pipeline for both the Baseline and Augmented models, 
+extracting their respective confusion matrices and localized deviations. 
+Generates and saves comparative visual analytics.
+"""
+# get all the scores and metrics from the evaluate_model function for both models
 cm_base, acc_base, f1_base, mac_prec_base, mac_rec_base, prec_arr_base, rec_arr_base = evaluate_model(baseline_model_path, "Baseline Model")
 cm_aug, acc_aug, f1_aug, mac_prec_aug, mac_rec_aug, prec_arr_aug, rec_arr_aug = evaluate_model(augmented_model_path, "Augmented Model")
 
