@@ -24,10 +24,12 @@ try:
     image_dir = '/content/drive/MyDrive/cWGAN_GP_Images'
     os.makedirs(image_dir, exist_ok=True)
     print("Drive mounted and output directory created!")
+    is_colab = True
 except ImportError:
     print("Not running in Google Colab. Images will be saved locally.")
     image_dir = './cWGAN_GP_Images'
     os.makedirs(image_dir, exist_ok=True)
+    is_colab = False
 
 # =====================================================
 # 0. Hyperparameters
@@ -40,7 +42,7 @@ torch.manual_seed(manualSeed)
 # Architectural parameters (Keeping our upgraded 128 capacity)
 image_size = 32   
 batch_size = 128
-workers = 2
+workers = 0
 num_epochs = 100
 nz = 100
 label_dim = 10
@@ -459,11 +461,16 @@ print(f"Loss plot saved to {plot_save_path}")
 plt.show()
 
 # === Saving Weights ===
-save_path_G = '/content/drive/MyDrive/cWGAN_GP_netG.pth'
-save_path_C = '/content/drive/MyDrive/cWGAN_GP_netC.pth'
+if is_colab:
+    save_path_G = '/content/drive/MyDrive/cWGAN_GP_netG.pth'
+    save_path_C = '/content/drive/MyDrive/cWGAN_GP_netC.pth'
+else:
+    os.makedirs('./model_weights', exist_ok=True)
+    save_path_G = './model_weights/cWGAN_GP_netG.pth'
+    save_path_C = './model_weights/cWGAN_GP_netC.pth'
 
 # Save the learned parameters
 torch.save(netG.state_dict(), save_path_G)
 torch.save(netC.state_dict(), save_path_C)
 
-print("Training Complete! WGAN-GP Weights successfully saved to Google Drive!")
+print(f"Training Complete! WGAN-GP Weights successfully saved to {save_path_G} and {save_path_C}!")

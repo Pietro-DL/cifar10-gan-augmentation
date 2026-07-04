@@ -35,10 +35,10 @@ print(f"--- Working Directory: {BASE_DIR} ---")
 # We are specifically evaluating the _v2 weights (StyleGAN2-ADA generations).
 experiments = [
     {"label": "0% Fake (Baseline)", "fake_pct": 0, "file": "cnn_100real_0fake.pth"},
-    {"label": "30% Fake (StyleGAN2)", "fake_pct": 30, "file": "cnn_70real_30fake_v2.pth"},
-    {"label": "50% Fake (StyleGAN2)", "fake_pct": 50, "file": "cnn_50real_50fake_v2.pth"},
-    {"label": "70% Fake (StyleGAN2)", "fake_pct": 70, "file": "cnn_30real_70fake_v2.pth"},
-    {"label": "100% Fake (Zero-Shot)", "fake_pct": 100, "file": "cnn_0real_100fake_v2.pth"}
+    {"label": "30% Fake (StyleGAN2)", "fake_pct": 30, "file": "cnn_70real_30fake.pth"},
+    {"label": "50% Fake (StyleGAN2)", "fake_pct": 50, "file": "cnn_50real_50fake.pth"},
+    {"label": "70% Fake (StyleGAN2)", "fake_pct": 70, "file": "cnn_30real_70fake.pth"},
+    {"label": "100% Fake (Zero-Shot)", "fake_pct": 100, "file": "cnn_0real_100fake.pth"}
 ]
 
 # ==========================================

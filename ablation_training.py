@@ -274,6 +274,7 @@ def train_experiment(experiment_name, num_real, num_fake):
 # ==========================================
 # Define the discrete ablation steps. The sum of real + fake must always strictly equal 50,000.
 experiments = [
+    {"name": "cnn_100real_0fake", "num_real": 50000, "num_fake": 0},
     {"name": "cnn_70real_30fake", "num_real": 35000, "num_fake": 15000},
     {"name": "cnn_50real_50fake", "num_real": 25000, "num_fake": 25000},
     {"name": "cnn_30real_70fake", "num_real": 15000, "num_fake": 35000},

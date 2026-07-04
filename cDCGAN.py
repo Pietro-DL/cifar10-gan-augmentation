@@ -13,9 +13,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
-from google.colab import drive
-drive.mount('/content/drive')
 
+try:
+    from google.colab import drive
+    drive.mount('/content/drive')
+    is_colab = True
+except ImportError:
+    is_colab = False
 
 
 # Lists to keep track of progress
@@ -34,7 +38,7 @@ torch.manual_seed(manualSeed)
 
 image_size = 32      # CIFAR-10 image size
 batch_size = 128     # Standard batch size for GANs
-workers = 2          # Number of CPU cores for data loading
+workers = 0          # Number of CPU cores for data loading
 num_epochs = 100     # Number of training epochs (start with 50-100)
 nz = 100           # Size of z latent vector (noise)
 label_dim = 10     # Number of classes in CIFAR-10
@@ -413,11 +417,16 @@ for epoch in range(num_epochs):
     plt.show()
 
 # === Saving Weights (Unindented, runs once at the very end) ===
-save_path_G = '/content/drive/MyDrive/cDCGAN_netG.pth'
-save_path_D = '/content/drive/MyDrive/cDCGAN_netD.pth'
+if is_colab:
+    save_path_G = '/content/drive/MyDrive/cDCGAN_netG.pth'
+    save_path_D = '/content/drive/MyDrive/cDCGAN_netD.pth'
+else:
+    os.makedirs('./model_weights', exist_ok=True)
+    save_path_G = './model_weights/cDCGAN_netG.pth'
+    save_path_D = './model_weights/cDCGAN_netD.pth'
 
 # Save the weights
 torch.save(netG.state_dict(), save_path_G)
 torch.save(netD.state_dict(), save_path_D)
 
-print("Weights successfully saved to Google Drive!")
+print(f"Weights successfully saved to {save_path_G} and {save_path_D}!")

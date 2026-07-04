@@ -93,22 +93,6 @@ testloader = DataLoader(testset, batch_size=64, shuffle=False)
 
 print(f"Test Set Ready! Total testing images: {len(testset)}")
 
-# ------------------------------------------
-# B. TESTING DATA (REAL ONLY)
-# ------------------------------------------
-# The Test Pipeline MUST NOT have random crops or flips!
-# We just convert to tensor and normalize to match the training scale.
-test_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
-
-# Load Real Testing Dataset (train=False)
-testset = torchvision.datasets.CIFAR10(root=real_data_root, train=False, download=True, transform=test_transform)
-testloader = DataLoader(testset, batch_size=64, shuffle=False) # No need to shuffle the test set
-
-print(f"Test Set Ready! Total testing images: {len(testset)}")
-
 # ==========================================
 # 2. THE CLASSIFIER ARCHITECTURE
 # ==========================================
