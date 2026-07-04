@@ -51,14 +51,17 @@ Reinstantiated here to map the structural dictionaries of the loaded .pth weight
 class CIFARClassifier(nn.Module):
     def __init__(self):
         super().__init__()
+
+        # Block 1
         self.conv_1a = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1)
         self.bn_1a = nn.BatchNorm2d(32)
-        self.relu_1a = nn.ReLU() 
+        self.relu_1a = nn.ReLU()
         self.conv_1b = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1, padding=1)
         self.bn_1b = nn.BatchNorm2d(32)
-        self.relu_1b = nn.ReLU() 
+        self.relu_1b = nn.ReLU()
         self.pool_1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
+        # Block 2
         self.conv_2a = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
         self.bn_2a = nn.BatchNorm2d(64)
         self.relu_2a = nn.ReLU()
@@ -67,6 +70,7 @@ class CIFARClassifier(nn.Module):
         self.relu_2b = nn.ReLU()
         self.pool_2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
+        # Block 3
         self.conv_3a = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1)
         self.bn_3a = nn.BatchNorm2d(128)
         self.relu_3a = nn.ReLU()
@@ -75,18 +79,25 @@ class CIFARClassifier(nn.Module):
         self.relu_3b = nn.ReLU()
         self.pool_3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
+        # Classification Head
         self.flatten = nn.Flatten()
-        self.fc_1 = nn.Linear(in_features=128 * 4 * 4, out_features=128) 
+        self.fc_1 = nn.Linear(in_features=128 * 4 * 4, out_features=128)
         self.relu_4 = nn.ReLU()
         self.fc_2 = nn.Linear(in_features=128, out_features=64)
         self.relu_5 = nn.ReLU()
-        self.fc_3 = nn.Linear(in_features=64, out_features=10)
+        self.fc_3 = nn.Linear(in_features=64, out_features=10) 
 
     def forward(self, x):
+        # Block 1
         x = self.pool_1(self.relu_1b(self.bn_1b(self.conv_1b(self.relu_1a(self.bn_1a(self.conv_1a(x)))))))
+        # Block 2
         x = self.pool_2(self.relu_2b(self.bn_2b(self.conv_2b(self.relu_2a(self.bn_2a(self.conv_2a(x)))))))
+        # Block 3
         x = self.pool_3(self.relu_3b(self.bn_3b(self.conv_3b(self.relu_3a(self.bn_3a(self.conv_3a(x)))))))
+        
+        # Classification Head
         x = self.flatten(x)
+        # Final output leverages raw logits; CrossEntropyLoss applies the Softmax internally
         return self.fc_3(self.relu_5(self.fc_2(self.relu_4(self.fc_1(x)))))
 
 # ==========================================
